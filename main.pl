@@ -106,17 +106,18 @@ sub train{
         push(@params, 'grounds['.($i).'][train]=1');
     }
 
-    my $resp = decode_json post($train_url, join('&', @params));
+    my $json = post($train_url, join('&', @params));
+    my $resp = decode_json $json;
 
-    if($resp->{status} == undef){
-        if($resp->message == 'captcha'){
+    if($resp->{status} eq undef){
+        if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
 =cut
-            print $resp->message."\n";
+            print $resp->{message}."\n";
             return undef;
         }else{
-            print $resp->message."\n";
+            print $resp->{message}."\n";
             return undef;
         }
     }else{
@@ -127,21 +128,73 @@ sub train{
 sub work_for_uncle{
     my $work_url  = 'http://www.erepublik.com/en/economy/work';
     my $token = get_token('http://www.erepublik.com/en/economy/myCompanies');
-    my $resp = decode_json post($work_url, 'action_type=work&_token='.$token);
-    if($resp->{status} == undef){
-        if($resp->message == 'captcha'){
+    my $json = post($work_url, 'action_type=work&_token='.$token);
+    my $resp = decode_json $json;
+    if($resp->{status} eq undef){
+        if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
 =cut
-            print $resp->message."\n";
+            print $resp->{message}."\n";
             return undef;
         }else{
-            print $resp->message."\n";
+            print $resp->{message}."\n";
             return undef;
         }
     }else{
         return 1;
     }
+}
+
+sub buy_food_raw{
+    print "Buy food raw start\n";
+    my $url = 'http://economy.erepublik.com/en/market/40/7';
+    my $get = get($url);
+
+    $get =~ m/<tr>[\r\n\s\t]*<td\sclass="m_product"\sid="productId_\d+"\sstyle="width:60px">[\r\n\s\t]*<img\ssrc="[^"]+"\salt=""\sclass="product_tooltip"\sindustry="7"\squality="1"\/>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_provider">[\r\n\s\t]*<a\shref="[^"]+"\s>[\r\n\s\t]*[^<]*<\/a>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_stock">[\r\n]*[\s]+(\d+)[\s]+<\/td>[\r\n\s\t]*<td\sclass="m_price\sstprice">[\r\n\s\t]*<strong>\d+<\/strong><sup>\.\d+\s<strong>UAH<\/strong><\/sup>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_quantity"><input\stype="text"\sclass="shadowed\sbuyField"\sname="textfield"\sid="amount_\d+"\smaxlength="4"\sonkeypress="return\scheckNumber\('int',\sevent\)"\sonblur="return\scheckInput\(this\)"\svalue="1"\/><\/td>[\r\n\s\t]*<td\sclass="m_buy"><a\shref="javascript:;"\sclass="f_light_blue_big\sbuyOffer"\stitle="Buy"\sid="(\d+)"><span>Buy<\/span><\/a><\/td>[\r\n\s\t]*<\/tr>/;
+    my $count = $1;
+    if($count>200){
+        $count = 200;
+    }
+    my $id = $2;
+    $get =~ m/<input\stype="hidden"\sname="buyMarketOffer\[_csrf_token\]"\svalue="([^"]+)"\sid="buyMarketOffer__csrf_token"\s\/>/;
+    my $token = $1;
+
+    my @params = (
+        'buyMarketOffer[_csrf_token]='.$token,
+        'buyMarketOffer[amount]='.$count,
+        'buyMarketOffer[offerId]='.$id
+    );
+
+    my $resp = post($url, join('&', @params));
+}
+#
+sub buy_weapos_raw{
+    print "Buy weapons raw start\n";
+    my $url = 'http://economy.erepublik.com/en/market/40/12';
+    my $get = get($url);
+    $get =~ m/<tr>[\r\n\s\t]*<td\sclass="m_product"\sid="productId_\d+"\sstyle="width:60px">[\r\n\s\t]*<img\ssrc="[^"]+"\salt=""\sclass="product_tooltip"\sindustry="12"\squality="1"\/>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_provider">[\r\n\s\t]*<a\shref="[^"]+"\s>[\r\n\s\t]*[^<]*<\/a>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_stock">[\r\n]*[\s]+(\d+)[\s]+<\/td>[\r\n\s\t]*<td\sclass="m_price\sstprice">[\r\n\s\t]*<strong>\d+<\/strong><sup>\.\d+\s<strong>UAH<\/strong><\/sup>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_quantity"><input\stype="text"\sclass="shadowed\sbuyField"\sname="textfield"\sid="amount_\d+"\smaxlength="4"\sonkeypress="return\scheckNumber\('int',\sevent\)"\sonblur="return\scheckInput\(this\)"\svalue="1"\/><\/td>[\r\n\s\t]*<td\sclass="m_buy"><a\shref="javascript:;"\sclass="f_light_blue_big\sbuyOffer"\stitle="Buy"\sid="(\d+)"><span>Buy<\/span><\/a><\/td>[\r\n\s\t]*<\/tr>/;
+
+    my $count = $1;
+    if($count>200){
+        $count = 200;
+    }
+    my $id = $2;
+    $get =~ m/<input\stype="hidden"\sname="buyMarketOffer\[_csrf_token\]"\svalue="([^"]+)"\sid="buyMarketOffer__csrf_token"\s\/>/;
+    my $token = $1;
+
+    my @params = (
+        'buyMarketOffer[_csrf_token]='.$token,
+        'buyMarketOffer[amount]='.$count,
+        'buyMarketOffer[offerId]='.$id
+    );
+
+    my $resp = post($url, join('&', @params));
+}
+
+sub buy_raw{
+    buy_food_raw;
+    buy_weapos_raw;
 }
 
 sub work_on_own{
@@ -170,37 +223,48 @@ sub work_on_own{
         push(@params, 'companies['.($i++).'][own_work]=1');
     }
 
-    my $resp = decode_json post($work_url, join('&', @params));
+    my $json = post($work_url, join('&', @params));
+    my $resp = decode_json $json;
     
     if(!$resp->{status}){
-        if($resp->message == 'captcha'){
+        if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
 =cut
-            print $resp->message."\n";die;
+            print $resp->{message}."\n";die;
             return undef;
+        }elsif($resp->{message} eq 'not_enough_raw'){
+            buy_raw;
         }else{
-            print $resp->message."\n";die;
+            print $resp->{message}."\n";die;
             return undef;
         }
     }else{
         return 1;
     }
-
-=cut
-  $get =~ m/<strong\sid="food_raw_consumed">([^<]*)<\/strong>/;
-    my $food_raw_consumed = $1;
-    $get =~ m/<strong\sid="weapon_raw_consumed">([^<]*)<\/strong>/;
-    my $weapon_raw_consumed = $1;
-
-    print $food_raw_consumed.' '.$weapon_raw_consumed;
-=cut
 }
 
 sub work_day{
-    train;
-    work_for_uncle;
-    work_on_own;
+    print "Train started\n";
+    if(train){
+        print "train sucessfull \n";
+    }else{
+        print "train failed \n";
+    }
+
+    print "Work for uncle started\n";
+    if(work_for_uncle){
+        print "Work for uncle sucessfull \n";
+    }else{
+        print "Work for uncle failed \n";
+    }
+
+    print "Work on own started\n";
+    if(work_on_own){
+        print "Work on own sucessfull \n";
+    }else{
+        print "Work on own failed \n";
+    }
 }
 
 =cut
@@ -245,5 +309,6 @@ if(defined $ARGV[0]){
         MainLoop;
 		
 	}
+}else{
+    work_day;
 }
-work_on_own;
