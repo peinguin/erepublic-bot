@@ -102,14 +102,14 @@ sub train{
 
     my $i = 0;
     foreach my $ground (@grounds){
-        push(@params, 'grounds['.($i++).'][id]='.$ground);
-        push(@params, 'grounds['.($i).'][train]=1');
+        push(@params, 'grounds['.($i).'][id]='.$ground);
+        push(@params, 'grounds['.($i++).'][train]=1');
     }
 
     my $json = post($train_url, join('&', @params));
     my $resp = decode_json $json;
 
-    if($resp->{status} eq undef){
+    if(!$resp->{status}){
         if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
@@ -130,7 +130,7 @@ sub work_for_uncle{
     my $token = get_token('http://www.erepublik.com/en/economy/myCompanies');
     my $json = post($work_url, 'action_type=work&_token='.$token);
     my $resp = decode_json $json;
-    if($resp->{status} eq undef){
+    if(!$resp->{status}){
         if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
@@ -168,7 +168,7 @@ sub buy_food_raw{
 
     my $resp = post($url, join('&', @params));
 }
-#
+
 sub buy_weapos_raw{
     print "Buy weapons raw start\n";
     my $url = 'http://economy.erepublik.com/en/market/40/12';
@@ -199,46 +199,61 @@ sub buy_raw{
 
 sub work_on_own{
 
-    my $work_url  = 'http://www.erepublik.com/en/economy/work';
+    my $do = 1;
+    my $error = 0;
 
-    my $get = get('http://www.erepublik.com/en/economy/myCompanies');
+    while ($do && $error == 0){
 
-    $get =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
-    my $token = $1;
+        my $work_url  = 'http://www.erepublik.com/en/economy/work';
 
-    $get =~ m/<span\sid="preset_works">(\d+)<\/span>\/(\d+)/;
-    my $workers = $2;
+        my $get = get('http://www.erepublik.com/en/economy/myCompanies');
 
-    my @companies = ($get =~ m/<div\sclass="listing\scompanies[^"]*" id="company_(\d+)">/g);
+        $get =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
+        my $token = $1;
 
-    my @params = (
-        '_token='.$token,
-        'action_type=production'
-    );
+        $get =~ m/<span\sid="preset_works">(\d+)<\/span>\/(\d+)/;
+        my $workers = $2;
 
-    my $i = 0;
-    foreach my $company (@companies){
-        push(@params, 'companies['.($i).'][id]='.$company);
-        push(@params, 'companies['.($i).'][employee_works]=0');
-        push(@params, 'companies['.($i++).'][own_work]=1');
-    }
+        my @companies = ($get =~ m/<div\sclass="listing\scompanies[^"]*" id="company_(\d+)">/g);
 
-    my $json = post($work_url, join('&', @params));
-    my $resp = decode_json $json;
-    
-    if(!$resp->{status}){
-        if($resp->{message} eq 'captcha'){
+        my @params = (
+            '_token='.$token,
+            'action_type=production'
+        );
+
+        my $i = 0;
+        foreach my $company (@companies){
+            push(@params, 'companies['.($i).'][id]='.$company);
+            push(@params, 'companies['.($i).'][employee_works]=0');
+            push(@params, 'companies['.($i++).'][own_work]=1');
+        }
+
+        my $json = post($work_url, join('&', @params));
+        my $resp = decode_json $json;
+        
+        if(!$resp->{status}){
+            if($resp->{message} eq 'captcha'){
 =cut
     TODO: Captcha processing
 =cut
-            print $resp->{message}."\n";die;
-            return undef;
-        }elsif($resp->{message} eq 'not_enough_raw'){
-            buy_raw;
+                print $resp->{message}."\n";
+                $error = 1;
+                return undef;
+            }elsif($resp->{message} eq 'not_enough_raw'){
+                print "Not enought raw. Buying \n";
+                buy_raw;
+            }else{
+                print $resp->{message}."\n";
+                $error = 1;
+            }
         }else{
-            print $resp->{message}."\n";die;
-            return undef;
+            $do = 0;
         }
+
+    }
+
+    if($error){
+        return 0;
     }else{
         return 1;
     }
