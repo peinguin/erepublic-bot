@@ -167,6 +167,18 @@ sub buy_food_raw{
     );
 
     my $resp = post($url, join('&', @params));
+
+    my $res = ($resp =~ m/<meta.*url=([^"]+)/);
+    if($res){
+        $resp = get($1);
+        $res = ($resp =~ m/<table\sstyle=""\sid=""\sclass="success_message\s">[\r\n\s]+<tbody><tr>[\r\n\s]+<td>([^<]+)<\/td>[\r\n\s]+<\/tr>[\r\n\s]+<\/tbody><\/table>/);
+        if($res){
+            print $1."\n";
+            return 1;
+        }else{
+            return 0;
+        }
+    }
 }
 
 sub buy_weapos_raw{
@@ -176,8 +188,8 @@ sub buy_weapos_raw{
     $get =~ m/<tr>[\r\n\s\t]*<td\sclass="m_product"\sid="productId_\d+"\sstyle="width:60px">[\r\n\s\t]*<img\ssrc="[^"]+"\salt=""\sclass="product_tooltip"\sindustry="12"\squality="1"\/>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_provider">[\r\n\s\t]*<a\shref="[^"]+"\s>[\r\n\s\t]*[^<]*<\/a>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_stock">[\r\n]*[\s]+(\d+)[\s]+<\/td>[\r\n\s\t]*<td\sclass="m_price\sstprice">[\r\n\s\t]*<strong>\d+<\/strong><sup>\.\d+\s<strong>UAH<\/strong><\/sup>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_quantity"><input\stype="text"\sclass="shadowed\sbuyField"\sname="textfield"\sid="amount_\d+"\smaxlength="4"\sonkeypress="return\scheckNumber\('int',\sevent\)"\sonblur="return\scheckInput\(this\)"\svalue="1"\/><\/td>[\r\n\s\t]*<td\sclass="m_buy"><a\shref="javascript:;"\sclass="f_light_blue_big\sbuyOffer"\stitle="Buy"\sid="(\d+)"><span>Buy<\/span><\/a><\/td>[\r\n\s\t]*<\/tr>/;
 
     my $count = $1;
-    if($count>200){
-        $count = 200;
+    if($count>1){
+        $count = 1;
     }
     my $id = $2;
     $get =~ m/<input\stype="hidden"\sname="buyMarketOffer\[_csrf_token\]"\svalue="([^"]+)"\sid="buyMarketOffer__csrf_token"\s\/>/;
@@ -190,6 +202,18 @@ sub buy_weapos_raw{
     );
 
     my $resp = post($url, join('&', @params));
+
+    my $res = ($resp =~ m/<meta.*url=([^"]+)/);
+    if($res){
+        $resp = get($1);
+        $res = ($resp =~ m/<table\sstyle=""\sid=""\sclass="success_message\s">[\r\n\s]+<tbody><tr>[\r\n\s]+<td>([^<]+)<\/td>[\r\n\s]+<\/tr>[\r\n\s]+<\/tbody><\/table>/);
+        if($res){
+            print $1."\n";
+            return 1;
+        }else{
+            return 0;
+        }
+    }
 }
 
 sub buy_raw{
@@ -259,54 +283,84 @@ sub work_on_own{
     }
 }
 
+sub get_reward{
+    my $json = get('http://www.erepublik.com/daily_tasks_reward');
+    my $resp = decode_json $json;
+    if(!$resp->{status}){
+        if($resp->{message} eq 'captcha'){
+=cut
+    TODO: Captcha processing
+=cut
+            print $resp->{message}."\n";
+            return 0;
+        }else{
+            print $resp->{message}."\n";
+            return 0;
+        }
+    }else{
+        return 1;
+    }
+}
+
 sub work_day{
     print "Train started\n";
-    if(train){
+    my $train = train;
+    if($train){
         print "train sucessfull \n";
     }else{
         print "train failed \n";
     }
 
     print "Work for uncle started\n";
-    if(work_for_uncle){
+    my $work_for_uncle = work_for_uncle;
+    if($work_for_uncle){
         print "Work for uncle sucessfull \n";
     }else{
         print "Work for uncle failed \n";
     }
 
     print "Work on own started\n";
-    if(work_on_own){
+    my $work_on_own = work_on_own;
+    if($work_on_own){
         print "Work on own sucessfull \n";
     }else{
         print "Work on own failed \n";
     }
+
+    if(($work_for_uncle || $work_on_own) && $train){
+        print "Getting reward\n";
+        if(get_reward){
+            print "Sucessfull\n";
+        }else{
+            print "Unsucessfull\n";
+        }
+    }
 }
 
-=cut
-my $mw = MainWindow->new;
+sub find_work{
+    #<select name="countryId" id="countryId" onchange="javascript:redirect('desc');">
+    #    <option title=""></option>
+   # 
+    get('http://www.erepublik.com/en/economy/job-market/167') =~ m/<select\sname="countryId"\sid="countryId"\sonchange="javascript:redirect\('desc'\);">[\r\n\s]+<option\stitle=""><\/option>([\r\n\s\S]*)<\/select>/;
+    my @countries = ($1 =~ m/<option\svalue="(\d+)"\s?[selected=""]*\s?\stitle="[^"]+"><a\shref="javascript:;">[^<]+<\/a><\/option>/g);
+    my $max = 0;
+    my $max_country = 0;
+    foreach my $country (@countries)
+    {
+        my $res = get('http://www.erepublik.com/en/economy/job-market/'.$country.'/1/desc') =~ m/<td class="jm_salary">[\r\n\s]+<strong>(\d+)<\/strong><sup>([\.\d]+)&nbsp;<strong>[\S]+<\/strong><\/sup>[\r\n\s]+<\/td>/;
 
-$mw->Label(-text => 'File Name')->pack;
-my $filename = $mw->Entry(-width => 20);
-$filename->pack;
+        if($res && $country != 11 && $country != 26 && $country != 77){
+            my $salary = $1.$2;
+            if($max == 0 || $max < $salary){
+                $max = $salary;
+                $max_country = $country;
+            }
+        }
+    } 
+    print $max.' '.$max_country."\n";
 
-$mw->Label(-text => 'Font Name')->pack;
-my $font = $mw->Entry(-width => 10);
-$font->pack;
-
-$mw->Button(
-    -text => 'Fax',
-    -command => sub{do_fax($filename, $font)}
-)->pack;
-
-$mw->Button(
-    -text => 'Print',
-    -command => sub{do_print($filename, $font)}
-)->pack;
-
-MainLoop;
-
-=cut
-
+    die;
+}
 
 if(defined $ARGV[0]){
 	if($ARGV[0] eq 'tk'){
@@ -323,7 +377,9 @@ if(defined $ARGV[0]){
         )->pack;
         MainLoop;
 		
-	}
+	}elsif($ARGV[0] eq 'find_work'){
+        find_work;
+    }
 }else{
     work_day;
 }
