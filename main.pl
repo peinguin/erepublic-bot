@@ -26,6 +26,7 @@ sub perform_request{
 
     my @cookies = (
         'erpk=ikvu6m9gunis3gkvnnhf8sek63',
+        'erpk_auth=1'
 	);
     
     my @headers;
@@ -363,6 +364,49 @@ sub find_work{
     print $max.' '.$max_country."\n";
 }
 
+sub eat{
+
+    my $hostname = 'www.erepublik.com';
+    my $culture = 'en';
+    my $url = 'http://'.$hostname.'/'.$culture;
+
+    my $get = get($url);
+
+    print "We must eat? - ";
+
+    my $res = $get =~ m/<strong\sid="current_health">([^<]+)<\/strong>/;
+        
+    if($1 < 100){
+        print "Yes\n";
+        $get =~ m/<big\sclass="tooltip_health_limit">(\d+)\s\/\s300<\/big>/;
+        print "We can eat? - ";
+        if($1 > 0){
+            print "Yes\n";
+           
+            $get =~ m/<input\stype="hidden"\svalue="([^"]+)"\sid="a69925ed4a6ac8d4b191ead1ab58e853">/;
+            $url .= "/main/eat?format=json&_token=".$1."&jsoncallback=?";
+            print "Eating \n";
+            my $json = get($url);
+            $json =~ m/\?\((\{.*\})\)/;
+            $json = $1;
+            my $resp = decode_json $json;
+            if($resp->{health} != 100){
+                print "Error\n";
+                print $json."\n";
+                return 0;
+            }else{
+                print "Sucessfull\n";
+                return 1;
+            }
+        }else{
+            print "No\n";
+        }
+    }else{
+        print "No\n";
+    }
+    
+}
+
 if(defined $ARGV[0]){
 	if($ARGV[0] eq 'tk'){
         my $mw = MainWindow->new;
@@ -382,6 +426,9 @@ if(defined $ARGV[0]){
         find_work;
     }elsif($ARGV[0] eq 'work_on_own'){
         work_on_own;
+    }
+    elsif($ARGV[0] eq 'eat'){
+        eat;
     }
 }else{
     work_day;
