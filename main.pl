@@ -25,7 +25,7 @@ sub post{
 sub perform_request{
 
     my @cookies = (
-        'erpk=5f9dnmist6ji14h5bgti8c48s7',
+        'erpk=jkt49u7ajmpovcjo7brk9b92c6',
         'erpk_auth=1'
 	);
     
@@ -411,12 +411,9 @@ sub find_food{
     my $min_price = 0;
     my $min_sort = 0;
     for(my $i = 1; $i <= 7; $i++) {
-        #print get('http://www.erepublik.com/en/economy/market/40/1/'.$i.'/citizen/0/price_asc/1');die;
         my $res = get('www.erepublik.com/en/economy/market/40/1/'.$i.'/citizen/0/price_asc/1') =~ m/<tr>[\n\r\s]+<td\s+class="m_product"\s+id="productId_(\d+)"\s+style="width:60px">[\n\r\s]+<img\s+src="[^"]+"\s+alt=""\s+class="product_tooltip"\s+industry="\d+"\s+quality="(\d+)"\/>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_provider">[\n\r\s]+<a\s+href="[^"]+"\s+>[\n\r\s]*[^<]*<\/a>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_stock">[\n\r\s]+(\d+)\s*<\/td>[\n\r\s]+<td\s+class="m_price\s+stprice">[\n\r\s]+<strong>(\d+)<\/strong><sup>\.(\d+)\s*<strong>[^<]+<\/strong><\/sup>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_quantity"><input\s+type="text"\s+class="shadowed\s+buyField"\s+name="textfield"\s+id="amount_\d+"\s+maxlength="4"\s+onkeypress="return\s+checkNumber\('int',\s+event\)"\s+onblur="return\s+checkInput\(this\)"\s+value="1"\/><\/td>[\n\r\s]+<td\s+class="m_buy"><a\s+href="javascript:;"\s+class="f_light_blue_big\s+buyOffer"\s+title="Buy"\s+id="\d+"><span>Buy<\/span><\/a><\/td>[\n\r\s]+<\/tr>/;
 
         if($res){
-            print $1.' '.$2.' '.$3.' '.(($4.'.'.$5)/(2*$2))."\n";
-
             my $price = $4.'.'.$5;
             if($min_price == 0 || $min_price > $price/(2*$2)){
                 $min_price = $price/(2*$2);
