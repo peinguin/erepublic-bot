@@ -5,7 +5,7 @@ use WWW::Curl::Easy;
 use Tk;
 use JSON;
 use Data::Dumper;
-
+use Config::IniFiles;
 
 sub get_ajax{
     my ($url) = @_;
@@ -23,24 +23,27 @@ sub post{
 }
 
 sub perform_request{
+    
+    my ($url, $query, $post, $ajax, $show_headers, @additional_cookies) = @_;
+
+    my @standart_cookies=(
+        'erpk_auth=1'
+    );
 
     my @cookies = (
-        'erpk=r8est53es59p2kh1kff8qt0s53',
-        'erpk_auth=1'
-	);
-    
+        @standart_cookies, @additional_cookies
+    );
+
     my @headers;
     push(@headers, 'Cookie: '.join('; ', @cookies));
-    push(@headers, 'User-Agent:	Mozilla/5.0 (X11; Linux x86_64; rv:9.0.1) Gecko/20100101 Firefox/9.0.1 Iceweasel/9.0.1');
-    
-    my ($url, $query, $post, $ajax) = @_;
+    push(@headers, 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:9.0.1) Gecko/20100101 Firefox/9.0.1 Iceweasel/9.0.1');
 
     if($ajax){
         push(@headers, 'X-Requested-With: XMLHttpRequest');
     }
 
     my $curl = WWW::Curl::Easy->new;
-    $curl->setopt(CURLOPT_HEADER,0);
+    $curl->setopt(CURLOPT_HEADER,$show_headers?1:0);
     $curl->setopt(CURLOPT_HTTPHEADER, \@headers);
     
     if($post){
@@ -429,6 +432,66 @@ sub find_food{
     die;
 }
 
+sub get_erpk{
+    my($email, $password) = @_;
+    my $url = 'http://www.erepublik.com/uk';
+    my $res = get($url) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
+
+    if($res){
+        my $token = $1;
+        my $resp = perform_request('www.erepublik.com/uk/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
+        $res = ($resp =~ m/Set-Cookie:\serpk_mid=([^;]+);/);
+        if($res){
+            $res = ($resp = perform_request($url, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
+            if($res){
+                return $1;
+            }else{
+                die('Error get erpk');            
+            }
+        }else{
+            $res = $resp =~ m/Set-Cookie:\serpk=([^;]+);/;
+            if($res){
+                return $1;
+            }
+            die('Error get erpk_mid');            
+        }
+    }else{
+        die('Error get login token');
+    }
+}
+
+sub play_as_bots{
+    my $cfg = Config::IniFiles->new( -file => "config.ini" );
+
+    my $users = {};
+    my $i = 0;
+    WHILE: {do{
+        if($cfg->SectionExists ( 'user'.(++$i) )){
+            my $user = {};
+            $user->{'username'} = $cfg->val( 'user'.$i, 'username' );
+            $user->{'password'} = $cfg->val( 'user'.$i, 'password' );
+            
+            if($cfg->exists('user'.$i, 'erpk')){
+                $user->{'erpk'} = $cfg->val( 'user'.$i, 'erpk' );
+            }else{
+                $user->{'erpk'} = get_erpk($user->{'username'}, $user->{'password'});
+                $cfg->newval('user'.$i, 'erpk', $user->{'erpk'});
+                $cfg->RewriteConfig;
+            }
+
+            $users->{$i} = $user;
+        }else{
+            last WHILE;
+        }
+        my $user = {};
+        
+    }while(1);}
+
+    print Dumper($users);
+    die;
+
+}
+
 if(defined $ARGV[0]){
 	if($ARGV[0] eq 'tk'){
         my $mw = MainWindow->new;
@@ -453,6 +516,8 @@ if(defined $ARGV[0]){
         eat;
     }elsif($ARGV[0] eq 'find_food'){
         find_food;
+    }elsif($ARGV[0] eq 'play_as_bots'){
+        play_as_bots;
     }
 }else{
     work_day;
