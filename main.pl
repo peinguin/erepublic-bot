@@ -487,8 +487,7 @@ sub play_as_bots{
         
     }while(1);}
 
-    print Dumper($users);
-    die;
+    fore
 
 }
 
