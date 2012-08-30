@@ -7,6 +7,8 @@ use JSON;
 use Data::Dumper;
 use Config::IniFiles;
 
+my $host = 'http://www.erepublik.com/en';
+
 sub get_ajax{
     my ($url) = @_;
     perform_request($url, '', 0, 1);
@@ -29,6 +31,8 @@ sub perform_request{
     my @standart_cookies=(
         'erpk_auth=1'
     );
+
+    push(@additional_cookies, 'erpk=rfcc4ppsshof2bvhsjf63lrsl2');
 
     my @cookies = (
         @standart_cookies, @additional_cookies
@@ -88,9 +92,6 @@ sub find_food_raw{
         }
     } 
     print $min_price.' '.$min_country."\n";
-
-	die;
-
 }
 
 sub get_token{
@@ -100,9 +101,9 @@ sub get_token{
 }
 
 sub train{
-    my $train_url = 'http://www.erepublik.com/en/economy/train';
+    my $train_url = $host.'/economy/train';
 
-    my $content =get('http://www.erepublik.com/en/economy/training-grounds');
+    my $content =get($host.'/economy/training-grounds');
 
     $content =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
     my $token = $1;
@@ -136,8 +137,8 @@ sub train{
 }
 
 sub work_for_uncle{
-    my $work_url  = 'http://www.erepublik.com/en/economy/work';
-    my $token = get_token('http://www.erepublik.com/en/economy/myCompanies');
+    my $work_url  = $host.'/economy/work';
+    my $token = get_token($host.'/economy/myCompanies');
     my $json = post($work_url, 'action_type=work&_token='.$token);
     my $resp = decode_json $json;
     if(!$resp->{status}){
@@ -239,9 +240,9 @@ sub work_on_own{
 
     while ($do && $error == 0){
 
-        my $work_url  = 'http://www.erepublik.com/en/economy/work';
+        my $work_url  = $host.'/economy/work';
 
-        my $get = get('http://www.erepublik.com/en/economy/myCompanies');
+        my $get = get($host.'/economy/myCompanies');
 
         $get =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
         my $token = $1;
@@ -353,7 +354,7 @@ sub find_work{
     my $max_country = 0;
     while (my ($key, $country) = each $countries)
     {
-        my $res = get('http://www.erepublik.com/en/economy/job-market/'.$country->{id}.'/1/desc') =~ m/<td class="jm_salary">[\r\n\s]+<strong>(\d+)<\/strong><sup>([\.\d]+)&nbsp;<strong>[\S]+<\/strong><\/sup>[\r\n\s]+<\/td>/;
+        my $res = get($host.'/economy/job-market/'.$country->{id}.'/1/desc') =~ m/<td class="jm_salary">[\r\n\s]+<strong>(\d+)<\/strong><sup>([\.\d]+)&nbsp;<strong>[\S]+<\/strong><\/sup>[\r\n\s]+<\/td>/;
 
         if($res){
             my $salary = $1.$2;
@@ -367,18 +368,13 @@ sub find_work{
 }
 
 sub eat{
-
-    my $hostname = 'www.erepublik.com';
-    my $culture = 'en';
-    my $url = 'http://'.$hostname.'/'.$culture;
-
-    my $get = get($url);
+    my $get = get($host);
 
     print "We must eat? - ";
 
-    my $res = $get =~ m/<strong\sid="current_health">([^<]+)<\/strong>/;
-        
-    if($1 < 100){
+    my $res = $get =~ m/<strong\sid="current_health">[^\d]*(\d+)\s\/\s(\d+)[^<]*<\/strong>/;
+
+    if($1 < $2){
         print "Yes\n";
         $get =~ m/<big\sclass="tooltip_health_limit">(\d+)\s\/\s300<\/big>/;
         print "We can eat? - ";
@@ -386,9 +382,9 @@ sub eat{
             print "Yes\n";
            
             $get =~ m/<input\stype="hidden"\svalue="([^"]+)"\sid="a69925ed4a6ac8d4b191ead1ab58e853">/;
-            $url .= "/main/eat?format=json&_token=".$1."&jsoncallback=?";
+            $host .= "/main/eat?format=json&_token=".$1."&jsoncallback=?";
             print "Eating \n";
-            my $json = get($url);
+            my $json = get($host);
             $json =~ m/\?\((\{.*\})\)/;
             $json = $1;
             my $resp = decode_json $json;
@@ -406,7 +402,6 @@ sub eat{
     }else{
         print "No\n";
     }
-    
 }
 
 sub find_food{
@@ -414,7 +409,7 @@ sub find_food{
     my $min_price = 0;
     my $min_sort = 0;
     for(my $i = 1; $i <= 7; $i++) {
-        my $res = get('www.erepublik.com/en/economy/market/40/1/'.$i.'/citizen/0/price_asc/1') =~ m/<tr>[\n\r\s]+<td\s+class="m_product"\s+id="productId_(\d+)"\s+style="width:60px">[\n\r\s]+<img\s+src="[^"]+"\s+alt=""\s+class="product_tooltip"\s+industry="\d+"\s+quality="(\d+)"\/>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_provider">[\n\r\s]+<a\s+href="[^"]+"\s+>[\n\r\s]*[^<]*<\/a>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_stock">[\n\r\s]+(\d+)\s*<\/td>[\n\r\s]+<td\s+class="m_price\s+stprice">[\n\r\s]+<strong>(\d+)<\/strong><sup>\.(\d+)\s*<strong>[^<]+<\/strong><\/sup>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_quantity"><input\s+type="text"\s+class="shadowed\s+buyField"\s+name="textfield"\s+id="amount_\d+"\s+maxlength="4"\s+onkeypress="return\s+checkNumber\('int',\s+event\)"\s+onblur="return\s+checkInput\(this\)"\s+value="1"\/><\/td>[\n\r\s]+<td\s+class="m_buy"><a\s+href="javascript:;"\s+class="f_light_blue_big\s+buyOffer"\s+title="Buy"\s+id="\d+"><span>Buy<\/span><\/a><\/td>[\n\r\s]+<\/tr>/;
+        my $res = get($host.'/economy/market/40/1/'.$i.'/citizen/0/price_asc/1') =~ m/<tr>[\n\r\s]+<td\s+class="m_product"\s+id="productId_(\d+)"\s+style="width:60px">[\n\r\s]+<img\s+src="[^"]+"\s+alt=""\s+class="product_tooltip"\s+industry="\d+"\s+quality="(\d+)"\/>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_provider">[\n\r\s]+<a\s+href="[^"]+"\s+>[\n\r\s]*[^<]*<\/a>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_stock">[\n\r\s]+(\d+)\s*<\/td>[\n\r\s]+<td\s+class="m_price\s+stprice">[\n\r\s]+<strong>(\d+)<\/strong><sup>\.(\d+)\s*<strong>[^<]+<\/strong><\/sup>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_quantity"><input\s+type="text"\s+class="shadowed\s+buyField"\s+name="textfield"\s+id="amount_\d+"\s+maxlength="4"\s+onkeypress="return\s+checkNumber\('int',\s+event\)"\s+onblur="return\s+checkInput\(this\)"\s+value="1"\/><\/td>[\n\r\s]+<td\s+class="m_buy"><a\s+href="javascript:;"\s+class="f_light_blue_big\s+buyOffer"\s+title="Buy"\s+id="\d+"><span>Buy<\/span><\/a><\/td>[\n\r\s]+<\/tr>/;
 
         if($res){
             my $price = $4.'.'.$5;
@@ -434,15 +429,14 @@ sub find_food{
 
 sub get_erpk{
     my($email, $password) = @_;
-    my $url = 'http://www.erepublik.com/uk';
-    my $res = get($url) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
+    my $res = get($host) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
 
     if($res){
         my $token = $1;
-        my $resp = perform_request('www.erepublik.com/uk/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
+        my $resp = perform_request($host.'/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
         $res = ($resp =~ m/Set-Cookie:\serpk_mid=([^;]+);/);
         if($res){
-            $res = ($resp = perform_request($url, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
+            $res = ($resp = perform_request($host, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
             if($res){
                 return $1;
             }else{
@@ -487,8 +481,36 @@ sub play_as_bots{
         
     }while(1);}
 
-    fore
+    foreach my $user ($users){
 
+    }
+
+}
+
+sub go_in_military{
+    my $res = get($host.'/main/group-home/military') =~ /<div\sclass="mulist">[\r\s\t\n]*<a\shref="([^"]+)"\sclass="unit"\sstyle="display:none;">/m;
+    if($res){
+
+        my $resp = get('http://www.erepublik.com'.$1) =~ /<form\saction="([^"]+)"\smethod="post"\sname="groupActionsForm">[\r\s\t\n]*<input\stype="hidden"\sname="groupId"\svalue="([^"]+)"\/>[\r\s\t\n]*<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\s\/>[\r\s\t\n]*<input\stype="hidden"\sname="action"\svalue="apply"\s\/>[\r\s\t\n]*<\/form>/m;
+
+        post('http://www.erepublik.com'.$1, 'groupId='.$2.'&_token='.$3.'&action=apply');
+    }else{
+        die('Cant find any military unit');
+    }
+    print $1;
+}
+
+sub in_military{
+    my $res = (get($host) =~ /<div class="boxes\s(recruit_orders|order_of_day)" id="(recruitOrderContainer|orderContainer)">/m);
+    if($res){
+        print 'In military unit'."\n";
+        return 1;
+    }else{
+        print 'Not in military unit'."\n";
+        return undef;
+    }
+
+    return $res;
 }
 
 if(defined $ARGV[0]){
@@ -517,6 +539,12 @@ if(defined $ARGV[0]){
         find_food;
     }elsif($ARGV[0] eq 'play_as_bots'){
         play_as_bots;
+    }elsif($ARGV[0] eq 'work_day'){
+        work_day;
+    }elsif($ARGV[0] eq 'in_military'){
+        in_military;
+    }elsif($ARGV[0] eq 'go_in_military'){
+        go_in_military;
     }
 }else{
     work_day;
