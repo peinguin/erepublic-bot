@@ -6,14 +6,13 @@ use Tk;
 use JSON;
 use Data::Dumper;
 use Config::IniFiles;
- use Mail::Sendmail;
 
 my $host = 'erepublik.com';
 my $protocol = 'http://';
 my $prefix = 'www.';
 my $lang = '/en';
 
-my $erpk = '';
+my $erpk;
 
 sub get_ajax{
     my ($url) = @_;
@@ -38,8 +37,10 @@ sub perform_request{
         'erpk_auth=1'
     );
 
-    push(@additional_cookies, 'erpk='.$erpk);
-
+    if($erpk){
+        push(@additional_cookies, 'erpk='.$erpk);
+    }
+    
     my @cookies = (
         @standart_cookies, @additional_cookies
     );
@@ -324,12 +325,14 @@ sub get_notifications{
         $get = get($protocol.$prefix.$host.$lang);
     }
 
-    my $res = ($get =~ /<div\sclass="user_notify">[\r\n\t\s]*<a href="[^"]*"\stitle="[^"]*"\sclass="notify\snmail">[\r\n\t\s]*<img\ssrc="[^"]*"\salt=""\s\/>[\r\n\t\s]*(<em\sclass="fadeInUp">[\r\n\t\s]*\d+[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<a\shref="[^"]+"\stitle="[^"]+"\sclass="notify\snalert">[\r\n\t\s]*<img src="[^"]+"\salt=""\s\/>[\r\n\t\s]*(<em class="fadeInUp">[\r\n\t\s]*\d*[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<\/div>/m);
+    my $res = ($get =~ /<div\sclass="user_notify">[\r\n\t\s]*<a href="[^"]*"\stitle="[^"]*"\sclass="notify\snmail">[\r\n\t\s]*<img\ssrc="[^"]*"\salt=""\s\/>[\r\n\t\s]*(<em\sclass="fadeInUp">[\r\n\t\s]*\d+[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<a\shref="[^"]+"\stitle="[^"]+"\sclass="notify\snalert">[\r\n\t\s]*<img\ssrc="[^"]+"\salt=""\s\/>[\r\n\t\s]*(<em\sclass="fadeInUp">[\r\n\t\s]*\d*[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<\/div>/m);
 
     if($res){
         if($1 || $2){
             return 1;
         }
+    }else{
+        print $get;
     }
     return undef;
 }
@@ -452,14 +455,16 @@ sub find_food{
 
 sub get_erpk{
     my($email, $password) = @_;
-    my $res = get($protocol.$prefix.$host) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
+
+    my $res = get($protocol.$prefix.$host.$lang) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
 
     if($res){
         my $token = $1;
-        my $resp = perform_request($protocol.$prefix.$host.'/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
+        my $resp = perform_request($protocol.$prefix.$host.$lang.'/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
+       
         $res = ($resp =~ m/Set-Cookie:\serpk_mid=([^;]+);/);
         if($res){
-            $res = ($resp = perform_request($protocol.$prefix.$host, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
+            $res = ($resp = perform_request($protocol.$prefix.$host.$lang, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
             if($res){
                 return $1;
             }else{
@@ -477,46 +482,61 @@ sub get_erpk{
     }
 }
 
+sub logged_in{
+    my ($get) = @_;
+    if(!$get){
+        $get = get($protocol.$prefix.$host.$lang);
+    }
+
+    if($get =~ /<div\sid="signin">/m){
+        return undef;
+    }else{
+        return 1;
+    }
+}
+
 sub play_as_bots{
     my $cfg = Config::IniFiles->new( -file => "config.ini" );
 
-    my $users = {};
     my $i = 0;
-    WHILE: {do{
-        if($cfg->SectionExists ( 'user'.(++$i) )){
-            my $user = {};
-            $user->{'username'} = $cfg->val( 'user'.$i, 'username' );
-            $user->{'password'} = $cfg->val( 'user'.$i, 'password' );
-            
-            if($cfg->exists('user'.$i, 'erpk')){
-                $user->{'erpk'} = $cfg->val( 'user'.$i, 'erpk' );
+    WHILE: {
+        do{
+            if($cfg->SectionExists ( 'user'.(++$i) )){
+
+                if(!$cfg->exists('user'.$i, 'erpk')){
+                    $cfg->newval('user'.$i, 'erpk', get_erpk($cfg->val( 'user'.$i, 'username' ), $cfg->val( 'user'.$i, 'password' )));
+                    $cfg->RewriteConfig;
+                }
+
+                $erpk = $cfg->val( 'user'.$i, 'erpk' );
+
+                my $get = get($protocol.$prefix.$host.$lang);
+
+                if(!logged_in($get)){
+                    $cfg->setval('user'.$i, 'erpk', get_erpk($cfg->val( 'user'.$i, 'username' ), $cfg->val( 'user'.$i, 'password' )));
+                    $erpk = $cfg->val( 'user'.$i, 'erpk' );
+                    $get = get($protocol.$prefix.$host.$lang);
+                    $cfg->RewriteConfig;
+                }
+
+                if(get_notifications($get)){
+
+                    use MIME::Lite;
+                    my $msg = MIME::Lite->new (
+                        From =>$cfg->val( 'settings', 'email' ),
+                        To =>$cfg->val( 'settings', 'email' ),
+                        Subject =>'Erepublik notification.',
+                        Data =>"Have a new notification ".$cfg->val( 'user'.$i, 'username' ).' '.$cfg->val( 'user'.$i, 'password' )
+                        );
+                    $msg->send;
+                }
+
             }else{
-                $user->{'erpk'} = get_erpk($user->{'username'}, $user->{'password'});
-                $cfg->newval('user'.$i, 'erpk', $user->{'erpk'});
-                $cfg->RewriteConfig;
+                last WHILE;
             }
-
-            $users->{$i} = $user;
-        }else{
-            last WHILE;
-        }
-        my $user = {};
-        
-    }while(1);}
-
-    foreach my $user ($users){
-        $erpk = $user->{'erpk'};
-
-        my $get = get($protocol.$prefix.$host.$lang);
-
-        if(get_notifications($get)){
-            my %mail = (
-                    To      => $cfg->val( 'settings', 'email' ),
-                    Message => "Have a new notification ".$user->{'username'}.' '.$user->{'password'}
-                );
-
-            sendmail(%mail) or die $Mail::Sendmail::error;
-        }
+            my $user = {};
+            
+        }while(1);
     }
 }
 
