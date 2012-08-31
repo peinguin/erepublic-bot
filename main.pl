@@ -6,8 +6,14 @@ use Tk;
 use JSON;
 use Data::Dumper;
 use Config::IniFiles;
+ use Mail::Sendmail;
 
-my $host = 'http://www.erepublik.com/en';
+my $host = 'erepublik.com';
+my $protocol = 'http://';
+my $prefix = 'www.';
+my $lang = '/en';
+
+my $erpk = '';
 
 sub get_ajax{
     my ($url) = @_;
@@ -32,7 +38,7 @@ sub perform_request{
         'erpk_auth=1'
     );
 
-    push(@additional_cookies, 'erpk=rfcc4ppsshof2bvhsjf63lrsl2');
+    push(@additional_cookies, 'erpk='.$erpk);
 
     my @cookies = (
         @standart_cookies, @additional_cookies
@@ -75,14 +81,14 @@ sub perform_request{
 
 sub find_food_raw{
 
-    get('http://economy.erepublik.com/en/market/0') =~ m/<select\sname="countryId"\sid="countryId"\sonchange="javascript:redirectToMarket\(this,\s'countryId',\snull\);">[\r\n\s]+<option\svalue="0"\stitle="">Country<\/option>([\r\n\s\S]*)<\/select>/;
+    get($protocol.'economy.'.$host.$lang.'/market/0') =~ m/<select\sname="countryId"\sid="countryId"\sonchange="javascript:redirectToMarket\(this,\s'countryId',\snull\);">[\r\n\s]+<option\svalue="0"\stitle="">Country<\/option>([\r\n\s\S]*)<\/select>/;
     my @countries = ($1 =~ m/<option\s?[selected=""]*\s?\svalue="(\d+)"\stitle="[^"]+">[^<]+<\/option>/g);
 
     my $min_price = 0;
     my $min_country = 0;
     foreach my $country (@countries)
     {
-        my $res = get('http://economy.erepublik.com/en/market/'.$country.'/7/1/citizen/0/price_asc/1') =~ m/<td\sclass="m_price\sstprice">[\r\n\s]+<strong>([^<]+)<\/strong><sup>([^<]+)<strong>[^<]+<\/strong><\/sup>[\r\n\s]+<\/td>[\s\S]*<td\sclass="m_buy">/;
+        my $res = get($protocol.'economy.'.$host.$lang.'/market/'.$country.'/7/1/citizen/0/price_asc/1') =~ m/<td\sclass="m_price\sstprice">[\r\n\s]+<strong>([^<]+)<\/strong><sup>([^<]+)<strong>[^<]+<\/strong><\/sup>[\r\n\s]+<\/td>[\s\S]*<td\sclass="m_buy">/;
         if($res){
             my $price = $1.$2;
             if($min_price == 0 || $min_price > $price){
@@ -101,9 +107,9 @@ sub get_token{
 }
 
 sub train{
-    my $train_url = $host.'/economy/train';
+    my $train_url = $protocol.$prefix.$host.'/economy/train';
 
-    my $content =get($host.'/economy/training-grounds');
+    my $content =get($protocol.$prefix.$host.'/economy/training-grounds');
 
     $content =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
     my $token = $1;
@@ -137,8 +143,8 @@ sub train{
 }
 
 sub work_for_uncle{
-    my $work_url  = $host.'/economy/work';
-    my $token = get_token($host.'/economy/myCompanies');
+    my $work_url  = $protocol.$prefix.$host.'/economy/work';
+    my $token = get_token($protocol.$prefix.$host.'/economy/myCompanies');
     my $json = post($work_url, 'action_type=work&_token='.$token);
     my $resp = decode_json $json;
     if(!$resp->{status}){
@@ -156,7 +162,7 @@ sub work_for_uncle{
 
 sub buy_food_raw{
     print "Buy food raw start\n";
-    my $url = 'http://economy.erepublik.com/en/market/40/7';
+    my $url = $protocol.'economy.'.$host.$lang.'/market/40/7';
     my $get = get($url);
 
     $get =~ m/<tr>[\r\n\s\t]*<td\sclass="m_product"\sid="productId_\d+"\sstyle="width:60px">[\r\n\s\t]*<img\ssrc="[^"]+"\salt=""\sclass="product_tooltip"\sindustry="7"\squality="1"\/>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_provider">[\r\n\s\t]*<a\shref="[^"]+"\s>[\r\n\s\t]*[^<]*<\/a>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_stock">[\r\n]*[\s]+(\d+)[\s]+<\/td>[\r\n\s\t]*<td\sclass="m_price\sstprice">[\r\n\s\t]*<strong>\d+<\/strong><sup>\.\d+\s<strong>UAH<\/strong><\/sup>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_quantity"><input\stype="text"\sclass="shadowed\sbuyField"\sname="textfield"\sid="amount_\d+"\smaxlength="4"\sonkeypress="return\scheckNumber\('int',\sevent\)"\sonblur="return\scheckInput\(this\)"\svalue="1"\/><\/td>[\r\n\s\t]*<td\sclass="m_buy"><a\shref="javascript:;"\sclass="f_light_blue_big\sbuyOffer"\stitle="Buy"\sid="(\d+)"><span>Buy<\/span><\/a><\/td>[\r\n\s\t]*<\/tr>/;
@@ -191,7 +197,7 @@ sub buy_food_raw{
 
 sub buy_weapos_raw{
     print "Buy weapons raw start\n";
-    my $url = 'http://economy.erepublik.com/en/market/40/12';
+    my $url = $protocol.'economy'.$host.$lang.'/market/40/12';
     my $get = get($url);
 
     my $res = ($get =~ m/<tr>[\r\n\s\t]*<td\sclass="m_product"\sid="productId_\d+"\sstyle="width:60px">[\r\n\s\t]*<img\ssrc="[^"]+"\salt=""\sclass="product_tooltip"\sindustry="12"\squality="1"\/>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_provider">[\r\n\s\t]*<a\shref="[^"]+"\s>[\r\n\s\t]*[^<]*<\/a>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_stock">[\r\n]*[\s]+(\d+)[\s]+<\/td>[\r\n\s\t]*<td\sclass="m_price\sstprice">[\r\n\s\t]*<strong>\d+<\/strong><sup>\.\d+\s<strong>UAH<\/strong><\/sup>[\r\n\s\t]*<\/td>[\r\n\s\t]*<td\sclass="m_quantity"><input\stype="text"\sclass="shadowed\sbuyField"\sname="textfield"\sid="amount_\d+"\smaxlength="4"\sonkeypress="return\scheckNumber\('int',\sevent\)"\sonblur="return\scheckInput\(this\)"\svalue="1"\/><\/td>[\r\n\s\t]*<td\sclass="m_buy"><a\shref="javascript:;"\sclass="f_light_blue_big\sbuyOffer"\stitle="Buy"\sid="(\d+)"><span>Buy<\/span><\/a><\/td>[\r\n\s\t]*<\/tr>/);
@@ -240,9 +246,9 @@ sub work_on_own{
 
     while ($do && $error == 0){
 
-        my $work_url  = $host.'/economy/work';
+        my $work_url  = $protocol.$prefix.$host.'/economy/work';
 
-        my $get = get($host.'/economy/myCompanies');
+        my $get = get($protocol.$prefix.$host.'/economy/myCompanies');
 
         $get =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
         my $token = $1;
@@ -296,7 +302,7 @@ sub work_on_own{
 }
 
 sub get_reward{
-    my $json = get('http://www.erepublik.com/daily_tasks_reward');
+    my $json = get($protocol.$prefix.$host.'/daily_tasks_reward');
     my $resp = decode_json $json;
     if(!$resp->{status}){
         if($resp->{message} eq 'captcha'){
@@ -309,6 +315,23 @@ sub get_reward{
     }else{
         return 1;
     }
+}
+
+sub get_notifications{
+
+    my($get) = @_;
+    if(!$get){
+        $get = get($protocol.$prefix.$host.$lang);
+    }
+
+    my $res = ($get =~ /<div\sclass="user_notify">[\r\n\t\s]*<a href="[^"]*"\stitle="[^"]*"\sclass="notify\snmail">[\r\n\t\s]*<img\ssrc="[^"]*"\salt=""\s\/>[\r\n\t\s]*(<em\sclass="fadeInUp">[\r\n\t\s]*\d+[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<a\shref="[^"]+"\stitle="[^"]+"\sclass="notify\snalert">[\r\n\t\s]*<img src="[^"]+"\salt=""\s\/>[\r\n\t\s]*(<em class="fadeInUp">[\r\n\t\s]*\d*[\r\n\t\s]*<span>&nbsp;<\/span>[\r\n\t\s]*<\/em>)?[\r\n\t\s]*<\/a>[\r\n\t\s]*<\/div>/m);
+
+    if($res){
+        if($1 || $2){
+            return 1;
+        }
+    }
+    return undef;
 }
 
 sub work_day{
@@ -348,13 +371,13 @@ sub work_day{
 
 sub find_work{
 
-    my $countries = decode_json get_ajax('http://www.erepublik.com/country-list-not-conquered');
+    my $countries = decode_json get_ajax($protocol.$prefix.$host.'/country-list-not-conquered');
 
     my $max = 0;
     my $max_country = 0;
     while (my ($key, $country) = each $countries)
     {
-        my $res = get($host.'/economy/job-market/'.$country->{id}.'/1/desc') =~ m/<td class="jm_salary">[\r\n\s]+<strong>(\d+)<\/strong><sup>([\.\d]+)&nbsp;<strong>[\S]+<\/strong><\/sup>[\r\n\s]+<\/td>/;
+        my $res = get($protocol.$prefix.$host.'/economy/job-market/'.$country->{id}.'/1/desc') =~ m/<td class="jm_salary">[\r\n\s]+<strong>(\d+)<\/strong><sup>([\.\d]+)&nbsp;<strong>[\S]+<\/strong><\/sup>[\r\n\s]+<\/td>/;
 
         if($res){
             my $salary = $1.$2;
@@ -368,7 +391,7 @@ sub find_work{
 }
 
 sub eat{
-    my $get = get($host);
+    my $get = get($protocol.$prefix.$host);
 
     print "We must eat? - ";
 
@@ -409,7 +432,7 @@ sub find_food{
     my $min_price = 0;
     my $min_sort = 0;
     for(my $i = 1; $i <= 7; $i++) {
-        my $res = get($host.'/economy/market/40/1/'.$i.'/citizen/0/price_asc/1') =~ m/<tr>[\n\r\s]+<td\s+class="m_product"\s+id="productId_(\d+)"\s+style="width:60px">[\n\r\s]+<img\s+src="[^"]+"\s+alt=""\s+class="product_tooltip"\s+industry="\d+"\s+quality="(\d+)"\/>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_provider">[\n\r\s]+<a\s+href="[^"]+"\s+>[\n\r\s]*[^<]*<\/a>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_stock">[\n\r\s]+(\d+)\s*<\/td>[\n\r\s]+<td\s+class="m_price\s+stprice">[\n\r\s]+<strong>(\d+)<\/strong><sup>\.(\d+)\s*<strong>[^<]+<\/strong><\/sup>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_quantity"><input\s+type="text"\s+class="shadowed\s+buyField"\s+name="textfield"\s+id="amount_\d+"\s+maxlength="4"\s+onkeypress="return\s+checkNumber\('int',\s+event\)"\s+onblur="return\s+checkInput\(this\)"\s+value="1"\/><\/td>[\n\r\s]+<td\s+class="m_buy"><a\s+href="javascript:;"\s+class="f_light_blue_big\s+buyOffer"\s+title="Buy"\s+id="\d+"><span>Buy<\/span><\/a><\/td>[\n\r\s]+<\/tr>/;
+        my $res = get($protocol.$prefix.$host.'/economy/market/40/1/'.$i.'/citizen/0/price_asc/1') =~ m/<tr>[\n\r\s]+<td\s+class="m_product"\s+id="productId_(\d+)"\s+style="width:60px">[\n\r\s]+<img\s+src="[^"]+"\s+alt=""\s+class="product_tooltip"\s+industry="\d+"\s+quality="(\d+)"\/>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_provider">[\n\r\s]+<a\s+href="[^"]+"\s+>[\n\r\s]*[^<]*<\/a>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_stock">[\n\r\s]+(\d+)\s*<\/td>[\n\r\s]+<td\s+class="m_price\s+stprice">[\n\r\s]+<strong>(\d+)<\/strong><sup>\.(\d+)\s*<strong>[^<]+<\/strong><\/sup>[\n\r\s]+<\/td>[\n\r\s]+<td\s+class="m_quantity"><input\s+type="text"\s+class="shadowed\s+buyField"\s+name="textfield"\s+id="amount_\d+"\s+maxlength="4"\s+onkeypress="return\s+checkNumber\('int',\s+event\)"\s+onblur="return\s+checkInput\(this\)"\s+value="1"\/><\/td>[\n\r\s]+<td\s+class="m_buy"><a\s+href="javascript:;"\s+class="f_light_blue_big\s+buyOffer"\s+title="Buy"\s+id="\d+"><span>Buy<\/span><\/a><\/td>[\n\r\s]+<\/tr>/;
 
         if($res){
             my $price = $4.'.'.$5;
@@ -429,14 +452,14 @@ sub find_food{
 
 sub get_erpk{
     my($email, $password) = @_;
-    my $res = get($host) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
+    my $res = get($protocol.$prefix.$host) =~ m/<input\stype="hidden"\sid="_token"\sname="_token"\svalue="([^"]+)">/;
 
     if($res){
         my $token = $1;
-        my $resp = perform_request($host.'/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
+        my $resp = perform_request($protocol.$prefix.$host.'/login', '_token='.$token.'&citizen_email='.$email.'&citizen_password='.$password, 1,0,1);
         $res = ($resp =~ m/Set-Cookie:\serpk_mid=([^;]+);/);
         if($res){
-            $res = ($resp = perform_request($host, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
+            $res = ($resp = perform_request($protocol.$prefix.$host, '', 0,0,1, ('erpk_mid='.$1)) =~ m/Set-Cookie:\serpk=([^;]+);/);
             if($res){
                 return $1;
             }else{
@@ -482,18 +505,28 @@ sub play_as_bots{
     }while(1);}
 
     foreach my $user ($users){
+        $erpk = $user->{'erpk'};
 
+        my $get = get($protocol.$prefix.$host.$lang);
+
+        if(get_notifications($get)){
+            my %mail = (
+                    To      => $cfg->val( 'settings', 'email' ),
+                    Message => "Have a new notification ".$user->{'username'}.' '.$user->{'password'}
+                );
+
+            sendmail(%mail) or die $Mail::Sendmail::error;
+        }
     }
-
 }
 
 sub go_in_military{
-    my $res = get($host.'/main/group-home/military') =~ /<div\sclass="mulist">[\r\s\t\n]*<a\shref="([^"]+)"\sclass="unit"\sstyle="display:none;">/m;
+    my $res = get($protocol.$prefix.$host.'/main/group-home/military') =~ /<div\sclass="mulist">[\r\s\t\n]*<a\shref="([^"]+)"\sclass="unit"\sstyle="display:none;">/m;
     if($res){
 
-        my $resp = get('http://www.erepublik.com'.$1) =~ /<form\saction="([^"]+)"\smethod="post"\sname="groupActionsForm">[\r\s\t\n]*<input\stype="hidden"\sname="groupId"\svalue="([^"]+)"\/>[\r\s\t\n]*<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\s\/>[\r\s\t\n]*<input\stype="hidden"\sname="action"\svalue="apply"\s\/>[\r\s\t\n]*<\/form>/m;
+        my $resp = get($protocol.$prefix.$host.$1) =~ /<form\saction="([^"]+)"\smethod="post"\sname="groupActionsForm">[\r\s\t\n]*<input\stype="hidden"\sname="groupId"\svalue="([^"]+)"\/>[\r\s\t\n]*<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\s\/>[\r\s\t\n]*<input\stype="hidden"\sname="action"\svalue="apply"\s\/>[\r\s\t\n]*<\/form>/m;
 
-        post('http://www.erepublik.com'.$1, 'groupId='.$2.'&_token='.$3.'&action=apply');
+        post($protocol.$prefix.$host.$1, 'groupId='.$2.'&_token='.$3.'&action=apply');
     }else{
         die('Cant find any military unit');
     }
@@ -501,7 +534,7 @@ sub go_in_military{
 }
 
 sub in_military{
-    my $res = (get($host) =~ /<div class="boxes\s(recruit_orders|order_of_day)" id="(recruitOrderContainer|orderContainer)">/m);
+    my $res = (get($protocol.$prefix.$host) =~ /<div class="boxes\s(recruit_orders|order_of_day)" id="(recruitOrderContainer|orderContainer)">/m);
     if($res){
         print 'In military unit'."\n";
         return 1;
@@ -545,6 +578,8 @@ if(defined $ARGV[0]){
         in_military;
     }elsif($ARGV[0] eq 'go_in_military'){
         go_in_military;
+    }elsif($ARGV[0] eq 'get_notifications'){
+        get_notifications;
     }
 }else{
     work_day;
