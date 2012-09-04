@@ -108,11 +108,16 @@ sub get_token{
 }
 
 sub train{
-    my $train_url = $protocol.$prefix.$host.'/economy/train';
+    my $train_url = $protocol.$prefix.$host.$lang.'/economy/train';
 
-    my $content =get($protocol.$prefix.$host.'/economy/training-grounds');
+    my $content =get($protocol.$prefix.$host.$lang.'/economy/training-grounds');
 
-    $content =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
+    my $res = $content =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
+
+    if(!$res){
+        die "Error get train token";
+    }
+
     my $token = $1;
 
     my @grounds = ($content =~ m/<div\sclass="listing\sgrounds\s"\sid="ground_(\d+)">/g);
@@ -125,6 +130,10 @@ sub train{
     foreach my $ground (@grounds){
         push(@params, 'grounds['.($i).'][id]='.$ground);
         push(@params, 'grounds['.($i++).'][train]=1');
+    }
+
+    if($i == 0){
+        return 1;
     }
 
     my $json = post($train_url, join('&', @params));
@@ -144,8 +153,8 @@ sub train{
 }
 
 sub work_for_uncle{
-    my $work_url  = $protocol.$prefix.$host.'/economy/work';
-    my $token = get_token($protocol.$prefix.$host.'/economy/myCompanies');
+    my $work_url  = $protocol.$prefix.$host.$lang.'/economy/work';
+    my $token = get_token($protocol.$prefix.$host.$lang.'/economy/myCompanies');
     my $json = post($work_url, 'action_type=work&_token='.$token);
     my $resp = decode_json $json;
     if(!$resp->{status}){
@@ -247,9 +256,9 @@ sub work_on_own{
 
     while ($do && $error == 0){
 
-        my $work_url  = $protocol.$prefix.$host.'/economy/work';
+        my $work_url  = $protocol.$prefix.$host.$lang.'/economy/work';
 
-        my $get = get($protocol.$prefix.$host.'/economy/myCompanies');
+        my $get = get($protocol.$prefix.$host.$lang.'/economy/myCompanies');
 
         $get =~ m/<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\sid="award_token"\s\/>/;
         my $token = $1;
@@ -468,6 +477,7 @@ sub get_erpk{
             if($res){
                 return $1;
             }else{
+                print $resp;
                 die('Error get erpk');            
             }
         }else{
@@ -492,6 +502,103 @@ sub logged_in{
         return undef;
     }else{
         return 1;
+    }
+}
+
+#return -1 if low health
+sub fight{
+
+    my ($get) = @_;
+    if(!$get){
+        $get = get($protocol.$prefix.$host.$lang);
+    }
+
+    my $res = $get =~ m/<strong\sid="current_health">[^\d]*(\d+)\s\/\s(\d+)[^<]*<\/strong>/;
+
+    if($res){
+        if($1 < 10){
+            return -1;
+        }
+
+        $res = $get =~ /battleId[\s]+:\s(\d+)/m;
+        if($res){
+            my $battleId = $1;
+
+            $res = $get =~ /csrfToken[\s]+:\s\'([^']+)\'/m;
+
+            if($res){
+
+                my $token = $1;
+
+                my $url = $protocol.$prefix.$host.$lang."/military/fight-shooot/".$battleId;
+
+                while(1){
+
+                    my $json = post($url, 'battleId='.$battleId.'&_token='.$token);
+
+                    my $resp = decode_json $json;
+                    if($resp->{error}){
+                        if($resp->{display_captcha}){
+                            print "captcha";
+                            die;
+                        }elsif($resp->{message} eq "UNKNOWN_SIDE"){
+                            die $resp->{url};#document.location = response.url;
+                        }elsif($resp->{message} eq 'CHANGE_LOCATION'){
+                            die "change location";#location.reload();
+                        }
+                    }
+
+                    my $user = $resp->{user};
+                    if($user->{health} < 10){
+                        return -1;
+                    }
+                }
+
+            }else{
+                die "Error getting csrf token\n";
+            }
+
+        }else{
+            die "Error getting battleId\n";   
+        }
+
+    }else{
+        print 'Failed gat current health'."\n";
+        die;
+    }
+}
+
+sub day_order{
+
+    my ($get) = @_;
+    if(!$get){
+        $get = get($protocol.$prefix.$host.$lang);
+    }
+
+    my $res = ($get =~ /<div class="boxes\sorder_of_day"\sid="orderContainer">/m);
+    
+    if($res){
+        print 'In military unit'."\n";
+        return 1;
+    }else{
+
+        my $res = ($get =~ /<div class="boxes\srecruit_orders"\sid="recruitOrderContainer">/m);
+        if($res){
+            $res = get($protocol.$prefix.$host.$lang.'/military/campaigns') =~ /<a\shref="([^"]+)"\stitle=""\sclass="fight_button">/m;
+            if($res){
+                print 'Recruit order started'."\n";
+                fight(get($protocol.$prefix.$host.$1));
+            }else{
+                print 'Cannot find any campain'."\n";
+                return undef;
+            }
+        }else{
+            print 'Not in military unit'."\n";
+            if(go_in_military){
+                print "Joined in military unit\n";
+            }
+            return undef;
+        }
     }
 }
 
@@ -531,6 +638,9 @@ sub play_as_bots{
                     $msg->send;
                 }
 
+                work_day;
+                day_order;
+
             }else{
                 last WHILE;
             }
@@ -547,14 +657,20 @@ sub go_in_military{
         my $resp = get($protocol.$prefix.$host.$1) =~ /<form\saction="([^"]+)"\smethod="post"\sname="groupActionsForm">[\r\s\t\n]*<input\stype="hidden"\sname="groupId"\svalue="([^"]+)"\/>[\r\s\t\n]*<input\stype="hidden"\sname="_token"\svalue="([^"]+)"\s\/>[\r\s\t\n]*<input\stype="hidden"\sname="action"\svalue="apply"\s\/>[\r\s\t\n]*<\/form>/m;
 
         post($protocol.$prefix.$host.$1, 'groupId='.$2.'&_token='.$3.'&action=apply');
+        return 1;
     }else{
         die('Cant find any military unit');
     }
-    print $1;
 }
 
 sub in_military{
-    my $res = (get($protocol.$prefix.$host) =~ /<div class="boxes\s(recruit_orders|order_of_day)" id="(recruitOrderContainer|orderContainer)">/m);
+
+    my ($get) = @_;
+    if(!$get){
+        $get = get($protocol.$prefix.$host.$lang);
+    }
+
+    my $res = ($get =~ /<div class="boxes\s(recruit_orders|order_of_day)"\sid="(recruitOrderContainer|orderContainer)">/m);
     if($res){
         print 'In military unit'."\n";
         return 1;
@@ -562,8 +678,6 @@ sub in_military{
         print 'Not in military unit'."\n";
         return undef;
     }
-
-    return $res;
 }
 
 if(defined $ARGV[0]){
@@ -602,5 +716,5 @@ if(defined $ARGV[0]){
         get_notifications;
     }
 }else{
-    work_day;
+    play_as_bots;
 }
